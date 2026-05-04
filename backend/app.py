@@ -807,8 +807,10 @@ def _warmup():
         from security.blockchain import _init_blockchain
         _init_blockchain()
         logger.info("Blockchain warmed up")
-    except Exception:
-        pass
+    except ImportError:
+        logger.warning("Blockchain disabled: web3/eth-tester not installed")
+    except Exception as e:
+        logger.warning("Blockchain warmup failed: %s", e)
 
 
 threading.Thread(target=_warmup, daemon=True).start()

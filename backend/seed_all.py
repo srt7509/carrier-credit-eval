@@ -15,7 +15,8 @@ from data.mock_data import (
     generate_mock_model_performance, save_model_performance_to_db,
     generate_mock_model_registry, save_model_registry_to_db,
     generate_default_business_rules, save_business_rules_to_db,
-    seed_score_history,
+    seed_score_history, generate_mock_blockchain_records,
+    save_blockchain_records_to_db,
 )
 from scoring.scoring_model import DualModelScorer, save_scores_to_db, get_all_scores_from_db
 from data.mock_data import get_carriers_from_db
@@ -67,6 +68,11 @@ def main():
 
     logger.info("=== 生成历史评分快照 ===")
     seed_score_history(all_carriers)
+
+    logger.info("=== 生成区块链存证记录 ===")
+    carrier_ids = [c.carrier_id for c in carriers]
+    bc_records = generate_mock_blockchain_records(carrier_ids)
+    save_blockchain_records_to_db(bc_records)
 
     logger.info("=== 初始化完成 ===")
     logger.info("承运商: %d, 货主: %d, 评分: %d", len(carriers), len(shippers), len(results["champion"]))

@@ -428,6 +428,35 @@ def seed_score_history(carriers: List[Carrier]):
     logger.info("已为 %d 个承运商生成12个月历史评分", len(carriers))
 
 
+def generate_mock_blockchain_records(carrier_ids: list[str]) -> list[dict]:
+    """生成模拟区块链存证记录"""
+    import hashlib
+    records = []
+    now = datetime.now()
+    for cid in carrier_ids:
+        score_hash = hashlib.sha256(f"{cid}:{random.randint(50,100)}".encode()).hexdigest()[:16]
+        tx_hash = "0x" + hashlib.sha256(f"{cid}:{now.timestamp()}".encode()).hexdigest()
+        records.append({
+            "entity_id": cid,
+            "score_hash": score_hash,
+            "tx_hash": tx_hash,
+            "block_number": random.randint(100000, 999999),
+            "on_chain_time": (now - timedelta(days=random.randint(0, 30))).isoformat(),
+        })
+    return records
+
+
+def save_blockchain_records_to_db(records: list[dict]):
+    with default_db.connect() as conn:
+        for r in records:
+            conn.execute(
+                """INSERT INTO blockchain_records (entity_id, score_hash, tx_hash, block_number, on_chain_time, verified)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (r["entity_id"], r["score_hash"], r["tx_hash"], r["block_number"], r["on_chain_time"], 1),
+            )
+    logger.info("已保存 %d 条区块链存证记录", len(records))
+
+
 if __name__ == "__main__":
     from database.init_db import init_database
     init_database()
