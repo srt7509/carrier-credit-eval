@@ -26,9 +26,15 @@ let echartsInstalled = false
 
 async function ensureEcharts() {
   if (echartsInstalled) return
-  const echarts = await import('echarts')
+  const [{ RadarChart, LineChart }, { TooltipComponent, LegendComponent, GridComponent }, core, { CanvasRenderer }] = await Promise.all([
+    import('echarts/charts'),
+    import('echarts/components'),
+    import('echarts/core'),
+    import('echarts/renderers'),
+  ])
+  core.use([RadarChart, LineChart, TooltipComponent, LegendComponent, GridComponent, CanvasRenderer])
   echartsInstalled = true
-  window._echarts = echarts
+  window._echarts = core
 }
 
 async function loadData() {
