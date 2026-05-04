@@ -1,0 +1,182 @@
+# 承运商信用评价系统 - 评分配置
+version: "v2.0"
+
+# 当前冠军模型
+champion_model: "v1.0"
+challenger_model: "v2.0"
+
+# === 冠军模型 v1.0: 六维度评价体系 ===
+dimensions:
+  企业资质:
+    weight: 0.15
+    indicators:
+      证照有效性:
+        weight: 0.4
+        formula: "license_valid * 100"
+      经营年限:
+        weight: 0.3
+        formula: "min(100, cooperation_months / 12 * 10)"
+      注册资本评级:
+        weight: 0.3
+        formula: "80"
+
+  履约能力:
+    weight: 0.25
+    indicators:
+      订单完成率:
+        weight: 0.4
+        formula: "completed_orders / total_orders * 100"
+      准时率:
+        weight: 0.3
+        formula: "on_time_orders / completed_orders * 100"
+      近三月订单量:
+        weight: 0.3
+        formula: "min(100, recent_3m_orders / 2)"
+
+  服务质量:
+    weight: 0.20
+    indicators:
+      客户评分:
+        weight: 0.4
+        formula: "avg_customer_rating * 20"
+      投诉率:
+        weight: 0.3
+        formula: "max(0, 100 - complaint_count / total_orders * 200)"
+        penalty: true
+      货损率:
+        weight: 0.3
+        formula: "max(0, 100 - damage_rate * 100)"
+
+  行为合规:
+    weight: 0.15
+    indicators:
+      违章记录:
+        weight: 0.4
+        formula: "max(0, 100 - violation_count * 10)"
+        penalty: true
+      安全事故:
+        weight: 0.4
+        formula: "max(0, 100 - accident_count * 20)"
+        penalty: true
+      按时结款率:
+        weight: 0.2
+        formula: "on_time_payment_rate * 100"
+
+  经营信用:
+    weight: 0.15
+    indicators:
+      结账及时率:
+        weight: 0.5
+        formula: "on_time_payment_rate * 100"
+      历史欠款:
+        weight: 0.5
+        formula: "max(0, 100 - overdue_amount / 10000)"
+
+  生态协同:
+    weight: 0.10
+    indicators:
+      累计交易量:
+        weight: 0.5
+        formula: "min(100, total_orders / 5)"
+      信用趋势:
+        weight: 0.5
+        formula: "credit_trend_score"
+
+# === 挑战者模型 v2.0: 调整权重与指标 ===
+dimensions_v2:
+  企业资质:
+    weight: 0.12
+    indicators:
+      证照有效性:
+        weight: 0.35
+        formula: "license_valid * 100"
+      经营年限:
+        weight: 0.35
+        formula: "min(100, cooperation_months / 12 * 10)"
+      注册资本评级:
+        weight: 0.3
+        formula: "80"
+
+  履约能力:
+    weight: 0.28
+    indicators:
+      订单完成率:
+        weight: 0.45
+        formula: "completed_orders / total_orders * 100"
+      准时率:
+        weight: 0.3
+        formula: "on_time_orders / completed_orders * 100"
+      近三月订单量:
+        weight: 0.25
+        formula: "min(100, recent_3m_orders / 2)"
+
+  服务质量:
+    weight: 0.22
+    indicators:
+      客户评分:
+        weight: 0.45
+        formula: "avg_customer_rating * 20"
+      投诉率:
+        weight: 0.3
+        formula: "max(0, 100 - complaint_count / total_orders * 200)"
+        penalty: true
+      货损率:
+        weight: 0.25
+        formula: "max(0, 100 - damage_rate * 100)"
+
+  行为合规:
+    weight: 0.15
+    indicators:
+      违章记录:
+        weight: 0.35
+        formula: "max(0, 100 - violation_count * 10)"
+        penalty: true
+      安全事故:
+        weight: 0.45
+        formula: "max(0, 100 - accident_count * 20)"
+        penalty: true
+      按时结款率:
+        weight: 0.2
+        formula: "on_time_payment_rate * 100"
+
+  经营信用:
+    weight: 0.13
+    indicators:
+      结账及时率:
+        weight: 0.5
+        formula: "on_time_payment_rate * 100"
+      历史欠款:
+        weight: 0.5
+        formula: "max(0, 100 - overdue_amount / 10000)"
+
+  生态协同:
+    weight: 0.10
+    indicators:
+      累计交易量:
+        weight: 0.5
+        formula: "min(100, total_orders / 5)"
+      信用趋势:
+        weight: 0.5
+        formula: "credit_trend_score"
+
+# 评级阈值
+grade_thresholds:
+  AAA: 90
+  AA: 80
+  A: 70
+  B: 60
+  C: 0
+
+# 风险预警阈值
+risk_thresholds:
+  score_drop: 50
+  complaint_rate: 5
+  accident_count: 2
+
+# 模型切换条件
+switch_conditions:
+  min_consecutive_months: 6
+  min_epv: 50
+  ks_not_lower_than_champion: true
+  max_psi: 0.1
+  min_spearman: 0.75
