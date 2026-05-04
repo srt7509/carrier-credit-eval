@@ -26,7 +26,7 @@ const totalWeight = computed(() => Object.values(weights.value).reduce((s, w) =>
 const isValid = computed(() => Math.abs(totalWeight.value - 1.0) < 0.01)
 const hasChanges = computed(() => Object.keys(weights.value).some(name => weights.value[name] !== originalWeights.value[name]))
 const sliderMarks = { 0: '0%', 0.25: '25%', 0.5: '50%' }
-const dimColors = { '履约能力': '#2563EB', '合规记录': '#10B981', '财务信用': '#8B5CF6', '服务质量': '#F59E0B', '历史信用': '#EC4899' }
+const dimColors = { '企业资质': '#2563EB', '履约能力': '#10B981', '服务质量': '#8B5CF6', '行为合规': '#F59E0B', '经营信用': '#EC4899', '生态协同': '#8B5CF6' }
 
 async function handleSave() {
   saving.value = true

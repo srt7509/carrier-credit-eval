@@ -14,7 +14,7 @@ from settings import CONFIG_PATH
 from database.db_manager import default_db
 from database.models import Carrier
 from scoring.scoring_model import (
-    get_all_scores_from_db, get_score_history, CreditScorer, DualModelScorer,
+    get_all_scores_from_db, get_score_history, DualModelScorer,
     save_scores_to_db, calculate_psi,
 )
 from scoring.model_monitor import (
@@ -683,7 +683,7 @@ def update_config():
             for name, weight in data["dimensions"].items():
                 if name in config["dimensions"]:
                     config["dimensions"][name]["weight"] = weight
-        with open("scoring/config.yaml", "w", encoding="utf-8") as f:
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             yaml.dump(config, f, allow_unicode=True)
         return jsonify({"success": True, "config": config})
     except Exception as e:

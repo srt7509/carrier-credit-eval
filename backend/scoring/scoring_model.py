@@ -6,7 +6,7 @@ from typing import Dict, List, Any, Optional
 
 import yaml
 
-from database.models import Carrier, Shipper, CreditScore
+from database.models import Carrier, CreditScore
 from database.db_manager import DatabaseManager, default_db
 from scoring.safe_eval import SafeEvaluator, SafeEvalError
 from settings import CONFIG_PATH

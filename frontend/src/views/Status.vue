@@ -121,10 +121,10 @@ onUnmounted(() => { clearInterval(uptimeInterval) })
   <el-card>
     <template #header>快捷操作</template>
     <el-row :gutter="12">
-      <el-col :span="6"><el-button style="width: 100%;" @click="router.push('/')"><el-icon><DataAnalysis /></el-icon> 评分概览</el-button></el-col>
-      <el-col :span="6"><el-button style="width: 100%;" @click="router.push('/detail')"><el-icon><Search /></el-icon> 评分详情</el-button></el-col>
+      <el-col :span="6"><el-button style="width: 100%;" @click="router.push('/')"><el-icon><DataAnalysis /></el-icon> 承运商列表</el-button></el-col>
+      <el-col :span="6"><el-button style="width: 100%;" @click="router.push('/monitor')"><el-icon><DataAnalysis /></el-icon> 模型监控</el-button></el-col>
+      <el-col :span="6"><el-button style="width: 100%;" @click="router.push('/alerts')"><el-icon><Search /></el-icon> 风险预警</el-button></el-col>
       <el-col :span="6"><el-button style="width: 100%;" @click="router.push('/config')"><el-icon><Setting /></el-icon> 评分配置</el-button></el-col>
-      <el-col :span="6"><el-button style="width: 100%;" @click="router.push('/blockchain')"><el-icon><Connection /></el-icon> 区块链</el-button></el-col>
     </el-row>
   </el-card>
 </template>

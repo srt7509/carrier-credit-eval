@@ -97,7 +97,7 @@ def generate_mock_carriers(n: int = 50) -> List[Carrier]:
         payment_rate = random.uniform(0.5, 1.0)
         overdue_amount = random.uniform(0, 50000) if payment_rate < 0.8 else 0
         cooperation_months = random.randint(1, 48)
-        start_year = 2026 - cooperation_months // 12
+        start_year = datetime.now().year - cooperation_months // 12
         start_month = 12 - (cooperation_months % 12)
         if start_month <= 0:
             start_year -= 1
@@ -331,13 +331,13 @@ def generate_mock_model_registry() -> List[ModelRegistry]:
     return [
         ModelRegistry(
             model_version="v1.0", model_role="champion",
-            online_date="2024-06-01", update_cycle="月度",
+            online_date="2025-06-01", update_cycle="月度",
             dimension_count=6, status="运行中",
             consecutive_pass_months=0,
         ),
         ModelRegistry(
             model_version="v2.0", model_role="challenger",
-            online_date="2024-12-01", update_cycle="月度",
+            online_date="2025-12-01", update_cycle="月度",
             dimension_count=6, status="影子运行中",
             consecutive_pass_months=4,
         ),
