@@ -1,0 +1,9 @@
+node_modules/
+__pycache__/
+*.pyc
+*.db
+.DS_Store
+*.egg-info/
+.git/
+backend/backend.log
+frontend/frontend.log

@@ -796,17 +796,22 @@ def serve_spa(path):
 
 
 # ═══════════════════════════════════════════════════════════════
-# 启动
+# 后台初始化（Gunicorn / 直接启动均生效）
 # ═══════════════════════════════════════════════════════════════
 
+import threading
+
+
+def _warmup():
+    try:
+        from security.blockchain import _init_blockchain
+        _init_blockchain()
+        logger.info("Blockchain warmed up")
+    except Exception:
+        pass
+
+
+threading.Thread(target=_warmup, daemon=True).start()
+
 if __name__ == "__main__":
-    import threading
-    def _warmup():
-        try:
-            from security.blockchain import _init_blockchain
-            _init_blockchain()
-            logger.info("Blockchain warmed up")
-        except Exception:
-            pass
-    threading.Thread(target=_warmup, daemon=True).start()
     app.run(debug=True, port=5001)

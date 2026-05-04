@@ -1,0 +1,26 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: credit-backend
+    ports:
+      - "5001:5001"
+    environment:
+      - CREDIT_SECRET_KEY=${CREDIT_SECRET_KEY:-credit_prototype_secret_key_2025}
+      - CREDIT_LOG_LEVEL=INFO
+    volumes:
+      - credit_data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: credit-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  credit_data:
