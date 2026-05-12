@@ -23,13 +23,24 @@ class Shipper:
 
 @dataclass
 class Carrier:
-    """承运商数据模型"""
+    """承运商企业数据模型（不再作为评价对象）"""
     carrier_id: str
     name: str
-    carrier_type: str  # 个体司机/车队
-    unified_credit_code: str = ""  # 统一社会信用代码
-    transport_category: str = "普运"  # 普运 / 危化品
-    cooperation_start_date: str = ""  # 合作起始日期
+    unified_credit_code: str = ""
+    cooperation_start_date: str = ""
+    cooperation_mode: str = "长期协议"  # 长期协议 / 临时竞价
+    fleet_size: int = 0  # 实际车辆数
+    qualification: str = "全资质"  # 全资质 / 单一-普货 / 单一-危化品
+
+
+@dataclass
+class Vehicle:
+    """车辆数据模型（评价对象）"""
+    vehicle_id: str
+    carrier_id: str  # FK -> Carrier
+    license_plate: str  # 牌照号
+    driver_name: str  # 司机姓名
+    transport_category: str = "普货"  # 普货 / 危化品-易燃液体 / 危化品-气体 / 危化品-剧毒品
     total_orders: int = 0
     completed_orders: int = 0
     on_time_orders: int = 0
@@ -43,15 +54,15 @@ class Carrier:
     damage_rate: float = 0.0
     cooperation_months: int = 0
     credit_trend_score: float = 80.0
-    recent_3m_orders: int = 0  # 近三月订单数
-    risk_label: str = "正常"  # 正常/关注/预警
+    recent_3m_orders: int = 0
+    risk_label: str = "正常"
 
 
 @dataclass
 class CreditScore:
     """信用评分结果模型"""
     entity_id: str
-    entity_type: str  # carrier/shipper
+    entity_type: str  # vehicle/shipper
     score_value: float
     grade: str
     dimension_scores: dict = field(default_factory=dict)
@@ -138,7 +149,7 @@ class ModelRegistry:
     model_role: str  # champion / challenger / archived
     online_date: str
     update_cycle: str = "月度"  # 月度
-    dimension_count: int = 6
+    dimension_count: int = 5
     status: str = "运行中"  # 运行中 / 影子运行中 / 达标待切换 / 已切换 / 已归档
     consecutive_pass_months: int = 0  # 连续达标月数
 

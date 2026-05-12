@@ -199,7 +199,6 @@ async function handleExport() {
         <template #default="{ row }"><el-tag :type="row.transport_category === '危化品' ? 'danger' : ''" size="small">{{ row.transport_category }}</el-tag></template>
       </el-table-column>
       <el-table-column prop="recent_3m_orders" label="近三月订单" width="110" sortable />
-      <el-table-column prop="carrier_type" label="类型" width="90" />
       <el-table-column label="风险标签" width="90">
         <template #default="{ row }"><el-tag :type="riskColor(row.risk_label)" size="small">{{ row.risk_label }}</el-tag></template>
       </el-table-column>

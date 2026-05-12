@@ -12,7 +12,7 @@ import yaml
 
 from settings import CONFIG_PATH
 from database.db_manager import default_db
-from database.models import Carrier
+from database.models import Carrier, Vehicle
 from scoring.scoring_model import (
     get_all_scores_from_db, get_score_history, DualModelScorer,
     save_scores_to_db, calculate_psi,
@@ -40,66 +40,85 @@ logger = logging.getLogger(__name__)
 # 辅助函数
 # ═══════════════════════════════════════════════════════════════
 
-def _carrier_row_to_dict(r) -> dict:
-    """将 carriers 表行转为字典"""
+def _vehicle_row_to_dict(r) -> dict:
+    """将 vehicles 表行转为字典"""
     return {
-        "carrier_id": r[0], "name": r[1], "carrier_type": r[2],
-        "unified_credit_code": r[3] if len(r) > 3 and r[3] else "",
-        "transport_category": r[4] if len(r) > 4 and r[4] else "普运",
-        "cooperation_start_date": r[5] if len(r) > 5 and r[5] else "",
-        "total_orders": r[6] if len(r) > 6 else 0,
-        "completed_orders": r[7] if len(r) > 7 else 0,
-        "on_time_orders": r[8] if len(r) > 8 else 0,
-        "complaint_count": r[9] if len(r) > 9 else 0,
-        "accident_count": r[10] if len(r) > 10 else 0,
-        "violation_count": r[11] if len(r) > 11 else 0,
-        "license_valid": bool(r[12]) if len(r) > 12 else True,
-        "on_time_payment_rate": r[13] if len(r) > 13 else 0.0,
-        "overdue_amount": r[14] if len(r) > 14 else 0.0,
-        "avg_customer_rating": r[15] if len(r) > 15 else 0.0,
-        "damage_rate": r[16] if len(r) > 16 else 0.0,
-        "cooperation_months": r[17] if len(r) > 17 else 0,
-        "credit_trend_score": r[18] if len(r) > 18 else 80.0,
-        "recent_3m_orders": r[19] if len(r) > 19 else 0,
-        "risk_label": r[20] if len(r) > 20 else "正常",
+        "vehicle_id": r[0],
+        "carrier_id": r[1] if len(r) > 1 and r[1] else "",
+        "license_plate": r[2] if len(r) > 2 and r[2] else "",
+        "driver_name": r[3] if len(r) > 3 and r[3] else "",
+        "transport_category": r[4] if len(r) > 4 and r[4] else "普货",
+        "total_orders": r[5] if len(r) > 5 else 0,
+        "completed_orders": r[6] if len(r) > 6 else 0,
+        "on_time_orders": r[7] if len(r) > 7 else 0,
+        "complaint_count": r[8] if len(r) > 8 else 0,
+        "accident_count": r[9] if len(r) > 9 else 0,
+        "violation_count": r[10] if len(r) > 10 else 0,
+        "license_valid": bool(r[11]) if len(r) > 11 else True,
+        "on_time_payment_rate": r[12] if len(r) > 12 else 0.0,
+        "overdue_amount": r[13] if len(r) > 13 else 0.0,
+        "avg_customer_rating": r[14] if len(r) > 14 else 0.0,
+        "damage_rate": r[15] if len(r) > 15 else 0.0,
+        "cooperation_months": r[16] if len(r) > 16 else 0,
+        "credit_trend_score": r[17] if len(r) > 17 else 80.0,
+        "recent_3m_orders": r[18] if len(r) > 18 else 0,
+        "risk_label": r[19] if len(r) > 19 else "正常",
+    }
+
+
+def _carrier_row_to_dict(r) -> dict:
+    """将 carriers 表行转为字典（企业信息）"""
+    return {
+        "carrier_id": r[0],
+        "name": r[1] if len(r) > 1 and r[1] else "",
+        "unified_credit_code": r[2] if len(r) > 2 and r[2] else "",
+        "cooperation_start_date": r[3] if len(r) > 3 and r[3] else "",
+        "cooperation_mode": r[4] if len(r) > 4 and r[4] else "长期协议",
+        "fleet_size": r[5] if len(r) > 5 else 0,
+        "qualification": r[6] if len(r) > 6 else "全资质",
     }
 
 
 # ═══════════════════════════════════════════════════════════════
-# 7.2.3 承运商列表与筛选
+# 车辆列表与筛选（评价对象）
 # ═══════════════════════════════════════════════════════════════
 
-@app.route("/api/carriers", methods=["GET"])
-def get_carriers():
-    """获取承运商列表（支持多条件筛选和排序）"""
+@app.route("/api/vehicles", methods=["GET"])
+def get_vehicles():
+    """获取车辆列表（支持多条件筛选和排序）"""
     grade = request.args.get("grade")
     transport_category = request.args.get("transport_category")
     risk_label = request.args.get("risk_label")
     score_min = request.args.get("score_min", type=float)
     score_max = request.args.get("score_max", type=float)
-    sort_by = request.args.get("sort_by", "carrier_id")
+    carrier_id = request.args.get("carrier_id")
+    cooperation_mode = request.args.get("cooperation_mode")
+    scale = request.args.get("scale")
+    qualification = request.args.get("qualification")
+    sort_by = request.args.get("sort_by", "vehicle_id")
     sort_order = request.args.get("sort_order", "asc")
     search = request.args.get("search", "")
 
-    # 允许的排序字段
-    allowed_sort = {"carrier_id", "name", "score_value", "grade", "total_orders", "recent_3m_orders"}
+    allowed_sort = {"vehicle_id", "license_plate", "driver_name", "score_value", "grade", "total_orders", "recent_3m_orders"}
     if sort_by not in allowed_sort:
-        sort_by = "carrier_id"
+        sort_by = "vehicle_id"
     if sort_order not in ("asc", "desc"):
         sort_order = "asc"
 
     query = """
-        SELECT c.carrier_id, c.name, c.carrier_type, c.unified_credit_code,
-               c.transport_category, c.cooperation_start_date,
-               c.total_orders, c.completed_orders, c.on_time_orders,
-               c.complaint_count, c.accident_count, c.violation_count,
-               c.license_valid, c.on_time_payment_rate, c.overdue_amount,
-               c.avg_customer_rating, c.damage_rate, c.cooperation_months,
-               c.credit_trend_score, c.recent_3m_orders, c.risk_label,
+        SELECT v.vehicle_id, v.carrier_id, v.license_plate, v.driver_name,
+               v.transport_category, v.total_orders, v.completed_orders,
+               v.on_time_orders, v.complaint_count, v.accident_count,
+               v.violation_count, v.license_valid, v.on_time_payment_rate,
+               v.overdue_amount, v.avg_customer_rating, v.damage_rate,
+               v.cooperation_months, v.credit_trend_score,
+               v.recent_3m_orders, v.risk_label,
+               ca.name as carrier_name,
                COALESCE(s.score_value, 0) as score_value,
                COALESCE(s.grade, 'C') as grade
-        FROM carriers c
-        LEFT JOIN credit_scores s ON c.carrier_id = s.entity_id AND s.is_current = 1
+        FROM vehicles v
+        LEFT JOIN credit_scores s ON v.vehicle_id = s.entity_id AND s.is_current = 1
+        LEFT JOIN carriers ca ON v.carrier_id = ca.carrier_id
         WHERE 1=1
     """
     params = []
@@ -108,10 +127,10 @@ def get_carriers():
         query += " AND s.grade = ?"
         params.append(grade)
     if transport_category:
-        query += " AND c.transport_category = ?"
-        params.append(transport_category)
+        query += " AND v.transport_category LIKE ?"
+        params.append(f"%{transport_category}%")
     if risk_label:
-        query += " AND c.risk_label = ?"
+        query += " AND v.risk_label = ?"
         params.append(risk_label)
     if score_min is not None:
         query += " AND s.score_value >= ?"
@@ -119,16 +138,33 @@ def get_carriers():
     if score_max is not None:
         query += " AND s.score_value <= ?"
         params.append(score_max)
+    if carrier_id:
+        query += " AND v.carrier_id = ?"
+        params.append(carrier_id)
+    if cooperation_mode:
+        query += " AND ca.cooperation_mode = ?"
+        params.append(cooperation_mode)
+    if qualification:
+        query += " AND ca.qualification = ?"
+        params.append(qualification)
+    if scale:
+        if scale == "大型":
+            query += " AND ca.fleet_size >= 100"
+        elif scale == "中型":
+            query += " AND ca.fleet_size >= 50 AND ca.fleet_size < 100"
+        elif scale == "小型":
+            query += " AND ca.fleet_size < 50"
     if search:
-        query += " AND (c.name LIKE ? OR c.carrier_id LIKE ?)"
-        params.extend([f"%{search}%", f"%{search}%"])
+        query += " AND (v.license_plate LIKE ? OR v.driver_name LIKE ? OR v.vehicle_id LIKE ?)"
+        params.extend([f"%{search}%", f"%{search}%", f"%{search}%"])
 
     query += f" ORDER BY {sort_by} {sort_order.upper()}"
 
     rows = default_db.fetchall(query, tuple(params))
     results = []
     for r in rows:
-        d = _carrier_row_to_dict(r)
+        d = _vehicle_row_to_dict(r)
+        d["carrier_name"] = r[20] if len(r) > 20 else ""
         d["score_value"] = r[21] if len(r) > 21 else 0
         d["grade"] = r[22] if len(r) > 22 else "C"
         results.append(d)
@@ -136,34 +172,53 @@ def get_carriers():
     return jsonify(results)
 
 
-@app.route("/api/carriers/<carrier_id>", methods=["GET"])
-def get_carrier_detail(carrier_id):
-    """获取承运商完整画像"""
+@app.route("/api/carriers", methods=["GET"])
+def get_carriers_enterprise():
+    """获取承运商企业列表（用于下拉筛选）"""
+    rows = default_db.fetchall(
+        """SELECT carrier_id, name, unified_credit_code,
+                  cooperation_start_date, cooperation_mode, fleet_size, qualification
+           FROM carriers ORDER BY name"""
+    )
+    return jsonify([_carrier_row_to_dict(r) for r in rows])
+
+
+@app.route("/api/vehicles/<vehicle_id>", methods=["GET"])
+def get_vehicle_detail(vehicle_id):
+    """获取车辆完整画像"""
     row = default_db.fetchone(
-        """SELECT c.carrier_id, c.name, c.carrier_type, c.unified_credit_code,
-                  c.transport_category, c.cooperation_start_date,
-                  c.total_orders, c.completed_orders, c.on_time_orders,
-                  c.complaint_count, c.accident_count, c.violation_count,
-                  c.license_valid, c.on_time_payment_rate, c.overdue_amount,
-                  c.avg_customer_rating, c.damage_rate, c.cooperation_months,
-                  c.credit_trend_score, c.recent_3m_orders, c.risk_label
-           FROM carriers c WHERE c.carrier_id = ?""",
-        (carrier_id,),
+        """SELECT v.vehicle_id, v.carrier_id, v.license_plate, v.driver_name,
+                  v.transport_category, v.total_orders, v.completed_orders,
+                  v.on_time_orders, v.complaint_count, v.accident_count,
+                  v.violation_count, v.license_valid, v.on_time_payment_rate,
+                  v.overdue_amount, v.avg_customer_rating, v.damage_rate,
+                  v.cooperation_months, v.credit_trend_score,
+                  v.recent_3m_orders, v.risk_label,
+                  ca.name as carrier_name, ca.cooperation_mode
+           FROM vehicles v
+           LEFT JOIN carriers ca ON v.carrier_id = ca.carrier_id
+           WHERE v.vehicle_id = ?""",
+        (vehicle_id,),
     )
     if not row:
         return jsonify({"error": "Not found"}), 404
 
-    carrier = _carrier_row_to_dict(row)
+    vehicle = _vehicle_row_to_dict(row)
+    vehicle["carrier_name"] = row[20] if len(row) > 20 else ""
+    vehicle["carrier_info"] = {
+        "name": row[20] if len(row) > 20 else "",
+        "cooperation_mode": row[21] if len(row) > 21 else "",
+    }
 
     # 当前评分
     score_row = default_db.fetchone(
         """SELECT entity_id, entity_type, score_value, grade, dimension_scores,
                   risk_flags, signature, tx_hash, eval_time, model_version, eval_mode
            FROM credit_scores WHERE entity_id = ? AND is_current = 1""",
-        (carrier_id,),
+        (vehicle_id,),
     )
     if score_row:
-        carrier["current_score"] = {
+        vehicle["current_score"] = {
             "score_value": score_row[2],
             "grade": score_row[3],
             "dimension_scores": json.loads(score_row[4]) if score_row[4] else {},
@@ -175,18 +230,18 @@ def get_carrier_detail(carrier_id):
             "eval_mode": score_row[10] if len(score_row) > 10 else "普运",
         }
     else:
-        carrier["current_score"] = None
+        vehicle["current_score"] = None
 
     # 历史评分
-    carrier["score_history"] = get_score_history(carrier_id, 12)
+    vehicle["score_history"] = get_score_history(vehicle_id, 12)
 
     # 评分事件
     event_rows = default_db.fetchall(
         """SELECT event_id, entity_id, event_type, event_desc, score_change, category, event_time
            FROM score_events WHERE entity_id = ? ORDER BY event_time DESC LIMIT 20""",
-        (carrier_id,),
+        (vehicle_id,),
     )
-    carrier["events"] = [
+    vehicle["events"] = [
         {
             "event_id": er[0], "event_type": er[2], "event_desc": er[3],
             "score_change": er[4], "category": er[5], "event_time": er[6],
@@ -198,14 +253,14 @@ def get_carrier_detail(carrier_id):
     prev_score = default_db.fetchone(
         """SELECT score_value FROM score_history WHERE entity_id = ?
            ORDER BY eval_time DESC LIMIT 1 OFFSET 1""",
-        (carrier_id,),
+        (vehicle_id,),
     )
-    if prev_score and carrier["current_score"]:
-        carrier["score_change"] = round(carrier["current_score"]["score_value"] - prev_score[0], 2)
+    if prev_score and vehicle["current_score"]:
+        vehicle["score_change"] = round(vehicle["current_score"]["score_value"] - prev_score[0], 2)
     else:
-        carrier["score_change"] = 0
+        vehicle["score_change"] = 0
 
-    return jsonify(carrier)
+    return jsonify(vehicle)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -241,7 +296,7 @@ def score_events(entity_id):
 def dimension_averages():
     """获取各维度平台均值（用于雷达图对比）"""
     rows = default_db.fetchall(
-        """SELECT dimension_scores FROM credit_scores WHERE is_current = 1 AND entity_type = 'carrier'"""
+        """SELECT dimension_scores FROM credit_scores WHERE is_current = 1 AND entity_type = 'vehicle'"""
     )
     if not rows:
         return jsonify({})
@@ -329,15 +384,26 @@ def get_score_detail(entity_id):
 
 def _get_entity_info(entity_id, entity_type):
     """获取实体基本信息"""
-    if entity_type == "carrier":
+    if entity_type == "vehicle":
         row = default_db.fetchone(
-            """SELECT carrier_id, name, carrier_type, unified_credit_code,
-                      transport_category, cooperation_start_date,
-                      total_orders, completed_orders, on_time_orders,
-                      complaint_count, accident_count, violation_count,
-                      license_valid, on_time_payment_rate, overdue_amount,
-                      avg_customer_rating, damage_rate, cooperation_months,
-                      credit_trend_score, recent_3m_orders, risk_label
+            """SELECT vehicle_id, carrier_id, license_plate, driver_name,
+                      transport_category, total_orders, completed_orders,
+                      on_time_orders, complaint_count, accident_count,
+                      violation_count, license_valid, on_time_payment_rate,
+                      overdue_amount, avg_customer_rating, damage_rate,
+                      cooperation_months, credit_trend_score,
+                      recent_3m_orders, risk_label
+               FROM vehicles WHERE vehicle_id = ?""",
+            (entity_id,),
+        )
+        if not row:
+            return None
+        return _vehicle_row_to_dict(row)
+    elif entity_type == "carrier":
+        row = default_db.fetchone(
+            """SELECT carrier_id, name, unified_credit_code,
+                      cooperation_start_date, cooperation_mode,
+                      fleet_size, qualification
                FROM carriers WHERE carrier_id = ?""",
             (entity_id,),
         )
@@ -526,6 +592,7 @@ def business_evaluate_access():
 @app.route("/api/stats", methods=["GET"])
 def get_stats():
     """获取系统统计数据"""
+    vehicle_count = default_db.fetchone("SELECT COUNT(*) FROM vehicles")[0]
     carrier_count = default_db.fetchone("SELECT COUNT(*) FROM carriers")[0]
     shipper_count = default_db.fetchone("SELECT COUNT(*) FROM shippers")[0]
     score_count = default_db.fetchone("SELECT COUNT(*) FROM credit_scores WHERE is_current = 1")[0]
@@ -539,6 +606,7 @@ def get_stats():
     grade_distribution = {r[0]: r[1] for r in grade_rows}
 
     return jsonify({
+        "vehicle_count": vehicle_count,
         "carrier_count": carrier_count,
         "shipper_count": shipper_count,
         "score_count": score_count,
@@ -555,13 +623,13 @@ def get_stats():
 @app.route("/api/scores/recalculate", methods=["POST"])
 def recalculate_scores():
     """手动触发全量评分重算"""
-    from data.mock_data import get_carriers_from_db
-    carriers = get_carriers_from_db()
-    if not carriers:
-        return jsonify({"error": "No carriers found"}), 400
+    from data.mock_data import get_vehicles_from_db
+    vehicles = get_vehicles_from_db()
+    if not vehicles:
+        return jsonify({"error": "No vehicles found"}), 400
 
     dual = DualModelScorer()
-    results = dual.calculate_all(carriers)
+    results = dual.calculate_all(vehicles)
 
     # 计算 PSI
     old_scores = get_all_scores_from_db()
@@ -574,7 +642,7 @@ def recalculate_scores():
 
     return jsonify({
         "success": True,
-        "carriers_processed": len(carriers),
+        "vehicles_processed": len(vehicles),
         "psi": psi,
         "champion_mean": round(sum(s.score_value for s in results["champion"]) / len(results["champion"]), 2),
         "challenger_mean": round(sum(s.score_value for s in results["challenger"]) / len(results["challenger"]), 2),
@@ -603,7 +671,7 @@ def blockchain_records():
     results = []
     for row in rows:
         if entity_type:
-            prefix = "C" if entity_type == "carrier" else "S"
+            prefix = "V" if entity_type == "vehicle" else ("S" if entity_type == "shipper" else "C")
             if not row[0].startswith(prefix):
                 continue
         results.append({
@@ -709,7 +777,12 @@ def export_csv():
 
     csv_content = "ID,Type,Score,Grade,Time\n"
     for row in rows:
-        type_name = "承运商" if row[1] == "carrier" else "货主"
+        if row[1] == "vehicle":
+            type_name = "车辆"
+        elif row[1] == "carrier":
+            type_name = "承运商"
+        else:
+            type_name = "货主"
         csv_content += f"{row[0]},{type_name},{row[2]},{row[3]},{row[4]}\n"
 
     return send_file(
@@ -722,11 +795,13 @@ def export_csv():
 
 @app.route("/api/export/pdf/<entity_id>", methods=["GET"])
 def export_pdf(entity_id):
-    """导出承运商信用报告为 PDF 格式的 JSON（前端渲染）"""
+    """导出车辆信用报告为 PDF 格式的 JSON（前端渲染）"""
     row = default_db.fetchone(
-        """SELECT c.carrier_id, c.name, c.carrier_type, c.unified_credit_code,
-                  c.transport_category, c.cooperation_start_date
-           FROM carriers c WHERE c.carrier_id = ?""",
+        """SELECT v.vehicle_id, v.carrier_id, v.license_plate, v.driver_name,
+                  v.transport_category, ca.name as carrier_name
+           FROM vehicles v
+           LEFT JOIN carriers ca ON v.carrier_id = ca.carrier_id
+           WHERE v.vehicle_id = ?""",
         (entity_id,),
     )
     if not row:
@@ -744,11 +819,11 @@ def export_pdf(entity_id):
     )
 
     report = {
-        "carrier": {
-            "id": row[0], "name": row[1], "type": row[2],
-            "unified_credit_code": row[3] if len(row) > 3 else "",
+        "vehicle": {
+            "id": row[0], "carrier_id": row[1],
+            "license_plate": row[2], "driver_name": row[3],
             "transport_category": row[4] if len(row) > 4 else "",
-            "cooperation_start_date": row[5] if len(row) > 5 else "",
+            "carrier_name": row[5] if len(row) > 5 else "",
         },
         "score": {
             "score_value": score_row[0], "grade": score_row[1],

@@ -6,7 +6,7 @@ from typing import Dict, List, Any, Optional
 
 import yaml
 
-from database.models import Carrier, CreditScore
+from database.models import Carrier, Vehicle, CreditScore
 from database.db_manager import DatabaseManager, default_db
 from scoring.safe_eval import SafeEvaluator, SafeEvalError
 from settings import CONFIG_PATH
@@ -69,7 +69,7 @@ class CreditScorer:
             "credit_trend_score": float(entity.credit_trend_score),
         }
 
-        if isinstance(entity, Carrier):
+        if isinstance(entity, Vehicle):
             vars_dict.update({
                 "on_time_orders": float(entity.on_time_orders),
                 "accident_count": float(entity.accident_count),
@@ -134,9 +134,9 @@ class CreditScorer:
         grade = self.config.get_grade(total_score)
         risk_flags = self._check_risks(entity, total_score)
 
-        if isinstance(entity, Carrier):
-            entity_id = entity.carrier_id
-            entity_type = "carrier"
+        if isinstance(entity, Vehicle):
+            entity_id = entity.vehicle_id
+            entity_type = "vehicle"
         else:
             entity_id = entity.shipper_id
             entity_type = "shipper"
@@ -161,7 +161,7 @@ class CreditScorer:
             if complaint_rate > thresholds["complaint_rate"]:
                 risks.append(f"投诉率过高: {round(complaint_rate, 2)}%")
 
-        if isinstance(entity, Carrier):
+        if isinstance(entity, Vehicle):
             if entity.accident_count > thresholds["accident_count"]:
                 risks.append(f"安全事故次数过多: {entity.accident_count}次")
             if not entity.license_valid:
@@ -175,7 +175,13 @@ class CreditScorer:
         return risks
 
     def calculate_all(self, entities: List, eval_mode: str = "普运") -> List[CreditScore]:
-        return [self.calculate_score(entity, eval_mode) for entity in entities]
+        return [self.calculate_score(entity, self._get_eval_mode(entity, eval_mode)) for entity in entities]
+
+    def _get_eval_mode(self, entity, fallback: str = "普运") -> str:
+        """从车辆实体推导评价模式，非车辆实体用 fallback"""
+        if isinstance(entity, Vehicle):
+            return "危化品" if "危化品" in entity.transport_category else "普运"
+        return fallback
 
 
 class DualModelScorer:
@@ -292,21 +298,23 @@ def calculate_psi(scores_old: List[CreditScore], scores_new: List[CreditScore]) 
 
 
 if __name__ == "__main__":
-    from data.mock_data import generate_mock_carriers
+    from data.mock_data import generate_mock_carriers, generate_mock_vehicles
     from database.init_db import init_database
 
     init_database()
-    carriers = generate_mock_carriers(10)
+    carriers = generate_mock_carriers(5)
+    carrier_ids = [c.carrier_id for c in carriers]
+    vehicles = generate_mock_vehicles(carrier_ids, 20)
 
     print("=== 冠军模型 v1.0 ===")
     scorer = CreditScorer(model_version="v1.0")
-    scores = scorer.calculate_all(carriers)
+    scores = scorer.calculate_all(vehicles)
     for s in scores:
         print(f"{s.entity_id}: {s.score_value} ({s.grade}) - {s.dimension_scores}")
 
     print("\n=== 挑战者模型 v2.0 ===")
     scorer2 = CreditScorer(model_version="v2.0")
-    scores2 = scorer2.calculate_all(carriers)
+    scores2 = scorer2.calculate_all(vehicles)
     for s in scores2:
         print(f"{s.entity_id}: {s.score_value} ({s.grade})")
 

@@ -5,16 +5,32 @@ from datetime import datetime, timedelta
 from typing import List
 
 from database.db_manager import default_db
-from database.models import Carrier, Shipper, ScoreEvent, AlertRecord, ModelPerformance, ModelRegistry, BusinessRule
+from database.models import Carrier, Vehicle, Shipper, ScoreEvent, AlertRecord, ModelPerformance, ModelRegistry, BusinessRule
 
 logger = logging.getLogger(__name__)
 
-# 承运商名称池
+# 承运商企业名称池
 CARRIER_NAMES = [
     "顺达物流", "安达运输", "恒通快运", "远航货运", "中铁集运",
     "通达供应链", "鑫驰物流", "华运通", "捷安达", "万联运输",
     "腾飞货运", "九州物流", "长运通达", "汇通快线", "信达运输",
-    "宏远物流", "正达货运", "天行速运", "凯通物流", "联达供应链",
+]
+
+# 司机姓名池
+DRIVER_SURNAMES = ["张", "李", "王", "刘", "陈", "杨", "赵", "黄", "周", "吴",
+                   "徐", "孙", "马", "朱", "胡", "郭", "何", "高", "林", "罗"]
+DRIVER_GIVEN = ["伟", "强", "磊", "军", "勇", "明", "华", "斌", "涛", "鹏",
+                "建", "国", "志", "文", "峰", "刚", "辉", "杰", "亮", "飞",
+                "海", "波", "超", "龙", "洋"]
+
+# 牌照前缀池
+PLATE_PREFIXES = [
+    ("陕A", "西安"), ("陕K", "榆林"), ("陕J", "延安"),
+    ("蒙A", "呼和浩特"), ("蒙K", "鄂尔多斯"),
+    ("鲁A", "济南"), ("鲁E", "东营"),
+    ("晋A", "太原"), ("晋H", "忻州"),
+    ("甘A", "兰州"), ("甘M", "庆阳"),
+    ("宁A", "银川"), ("豫A", "郑州"),
 ]
 
 
@@ -77,14 +93,92 @@ def get_shippers_from_db() -> List[Shipper]:
     ]
 
 
-def generate_mock_carriers(n: int = 50) -> List[Carrier]:
-    """生成模拟承运商数据"""
+# ═══════════════════════════════════════════════════════════════
+# 承运商企业（不再作为评价对象）
+# ═══════════════════════════════════════════════════════════════
+
+def generate_mock_carriers(n: int = 15) -> List[Carrier]:
+    """生成模拟承运商企业数据"""
     carriers = []
-    carrier_types = ["个体司机", "车队"]
-    transport_categories = ["普运", "普运", "普运", "危化品"]  # 75% 普运, 25% 危化品
-    risk_labels = ["正常", "正常", "正常", "正常", "关注", "预警"]  # 大部分正常
+    cooperation_modes = ["长期协议", "长期协议", "长期协议", "临时竞价"]  # 75% 长期协议
+    qualifications = ["全资质", "全资质", "单一-普货", "单一-危化品"]
 
     for i in range(n):
+        cooperation_months = random.randint(6, 72)
+        start_year = datetime.now().year - cooperation_months // 12
+        start_month = 12 - (cooperation_months % 12)
+        if start_month <= 0:
+            start_year -= 1
+            start_month += 12
+        cooperation_start = f"{start_year}-{start_month:02d}"
+
+        fleet_size = random.randint(2, 150)
+
+        carriers.append(Carrier(
+            carrier_id=f"C{i+1:03d}",
+            name=CARRIER_NAMES[i] if i < len(CARRIER_NAMES) else f"承运商{i+1}",
+            unified_credit_code=f"91310115MA1K{i+1:04d}X8",
+            cooperation_start_date=cooperation_start,
+            cooperation_mode=random.choice(cooperation_modes),
+            fleet_size=fleet_size,
+            qualification=random.choice(qualifications),
+        ))
+
+    return carriers
+
+
+def save_carriers_to_db(carriers: List[Carrier]):
+    with default_db.connect() as conn:
+        for c in carriers:
+            conn.execute(
+                """INSERT OR REPLACE INTO carriers (
+                    carrier_id, name, unified_credit_code,
+                    cooperation_start_date, cooperation_mode, fleet_size, qualification
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (c.carrier_id, c.name, c.unified_credit_code,
+                 c.cooperation_start_date, c.cooperation_mode, c.fleet_size, c.qualification),
+            )
+    logger.info("已保存 %d 条承运商企业数据", len(carriers))
+
+
+def get_carriers_from_db() -> List[Carrier]:
+    rows = default_db.fetchall(
+        """SELECT carrier_id, name, unified_credit_code,
+                  cooperation_start_date, cooperation_mode, fleet_size, qualification
+           FROM carriers"""
+    )
+    return [
+        Carrier(carrier_id=r[0], name=r[1], unified_credit_code=r[2] if len(r) > 2 and r[2] else "",
+                cooperation_start_date=r[3] if len(r) > 3 and r[3] else "",
+                cooperation_mode=r[4] if len(r) > 4 and r[4] else "长期协议",
+                fleet_size=r[5] if len(r) > 5 else 0,
+                qualification=r[6] if len(r) > 6 else "全资质")
+        for r in rows
+    ]
+
+
+# ═══════════════════════════════════════════════════════════════
+# 车辆（评价对象）
+# ═══════════════════════════════════════════════════════════════
+
+def generate_mock_vehicles(carrier_ids: List[str], n: int = 100) -> List[Vehicle]:
+    """为给定承运商生成模拟车辆数据"""
+    vehicles = []
+    transport_categories = [
+        "普货", "普货", "普货",
+        "危化品-易燃液体", "危化品-气体", "危化品-剧毒品",
+    ]
+    risk_labels = ["正常", "正常", "正常", "正常", "关注", "预警"]
+
+    for i in range(n):
+        carrier_id = random.choice(carrier_ids)
+        plate_prefix, _ = random.choice(PLATE_PREFIXES)
+        license_plate = f"{plate_prefix}{random.randint(10000, 99999)}"
+
+        surname = random.choice(DRIVER_SURNAMES)
+        given = random.choice(DRIVER_GIVEN) + (random.choice(DRIVER_GIVEN) if random.random() > 0.5 else "")
+        driver_name = surname + given
+
         total_orders = random.randint(50, 500)
         completed = random.randint(int(total_orders * 0.7), total_orders)
         on_time = random.randint(int(completed * 0.6), completed)
@@ -97,17 +191,7 @@ def generate_mock_carriers(n: int = 50) -> List[Carrier]:
         payment_rate = random.uniform(0.5, 1.0)
         overdue_amount = random.uniform(0, 50000) if payment_rate < 0.8 else 0
         cooperation_months = random.randint(1, 48)
-        start_year = datetime.now().year - cooperation_months // 12
-        start_month = 12 - (cooperation_months % 12)
-        if start_month <= 0:
-            start_year -= 1
-            start_month += 12
-        cooperation_start = f"{start_year}-{start_month:02d}"
 
-        # 统一社会信用代码
-        unified_code = f"91310115MA1K{i+1:04d}X8"
-
-        # 风险标签
         complaint_count = random.randint(0, int(completed * 0.05))
         if not license_valid or accident_count >= 3:
             risk_label = "预警"
@@ -116,13 +200,12 @@ def generate_mock_carriers(n: int = 50) -> List[Carrier]:
         else:
             risk_label = random.choice(risk_labels)
 
-        carriers.append(Carrier(
-            carrier_id=f"C{i+1:03d}",
-            name=random.choice(CARRIER_NAMES) + (f"({chr(65+i%26)})" if i >= len(CARRIER_NAMES) else ""),
-            carrier_type=random.choice(carrier_types),
-            unified_credit_code=unified_code,
+        vehicles.append(Vehicle(
+            vehicle_id=f"V{i+1:03d}",
+            carrier_id=carrier_id,
+            license_plate=license_plate,
+            driver_name=driver_name,
             transport_category=random.choice(transport_categories),
-            cooperation_start_date=cooperation_start,
             total_orders=total_orders,
             completed_orders=completed,
             on_time_orders=on_time,
@@ -140,75 +223,72 @@ def generate_mock_carriers(n: int = 50) -> List[Carrier]:
             risk_label=risk_label,
         ))
 
-    return carriers
+    return vehicles
 
 
-def save_carriers_to_db(carriers: List[Carrier]):
+def save_vehicles_to_db(vehicles: List[Vehicle]):
     with default_db.connect() as conn:
-        for c in carriers:
+        for v in vehicles:
             conn.execute(
-                """INSERT OR REPLACE INTO carriers (
-                    carrier_id, name, carrier_type, unified_credit_code,
-                    transport_category, cooperation_start_date,
-                    total_orders, completed_orders, on_time_orders,
+                """INSERT OR REPLACE INTO vehicles (
+                    vehicle_id, carrier_id, license_plate, driver_name,
+                    transport_category, total_orders, completed_orders, on_time_orders,
                     complaint_count, accident_count, violation_count,
                     license_valid, on_time_payment_rate, overdue_amount,
                     avg_customer_rating, damage_rate, cooperation_months,
                     credit_trend_score, recent_3m_orders, risk_label
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (c.carrier_id, c.name, c.carrier_type, c.unified_credit_code,
-                 c.transport_category, c.cooperation_start_date,
-                 c.total_orders, c.completed_orders, c.on_time_orders,
-                 c.complaint_count, c.accident_count, c.violation_count,
-                 c.license_valid, c.on_time_payment_rate, c.overdue_amount,
-                 c.avg_customer_rating, c.damage_rate, c.cooperation_months,
-                 c.credit_trend_score, c.recent_3m_orders, c.risk_label),
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (v.vehicle_id, v.carrier_id, v.license_plate, v.driver_name,
+                 v.transport_category, v.total_orders, v.completed_orders, v.on_time_orders,
+                 v.complaint_count, v.accident_count, v.violation_count,
+                 v.license_valid, v.on_time_payment_rate, v.overdue_amount,
+                 v.avg_customer_rating, v.damage_rate, v.cooperation_months,
+                 v.credit_trend_score, v.recent_3m_orders, v.risk_label),
             )
-    logger.info("已保存 %d 条承运商数据", len(carriers))
+    logger.info("已保存 %d 条车辆数据", len(vehicles))
 
 
-def get_carriers_from_db() -> List[Carrier]:
+def get_vehicles_from_db() -> List[Vehicle]:
     rows = default_db.fetchall(
-        """SELECT carrier_id, name, carrier_type, unified_credit_code,
-                  transport_category, cooperation_start_date,
-                  total_orders, completed_orders, on_time_orders,
+        """SELECT vehicle_id, carrier_id, license_plate, driver_name,
+                  transport_category, total_orders, completed_orders, on_time_orders,
                   complaint_count, accident_count, violation_count,
                   license_valid, on_time_payment_rate, overdue_amount,
                   avg_customer_rating, damage_rate, cooperation_months,
                   credit_trend_score, recent_3m_orders, risk_label
-           FROM carriers"""
+           FROM vehicles"""
     )
     result = []
     for r in rows:
-        result.append(Carrier(
-            carrier_id=r[0], name=r[1], carrier_type=r[2],
-            unified_credit_code=r[3] if len(r) > 3 and r[3] else "",
-            transport_category=r[4] if len(r) > 4 and r[4] else "普运",
-            cooperation_start_date=r[5] if len(r) > 5 and r[5] else "",
-            total_orders=r[6] if len(r) > 6 else (r[3] if len(r) <= 3 else 0),
-            completed_orders=r[7] if len(r) > 7 else 0,
-            on_time_orders=r[8] if len(r) > 8 else 0,
-            complaint_count=r[9] if len(r) > 9 else 0,
-            accident_count=r[10] if len(r) > 10 else 0,
-            violation_count=r[11] if len(r) > 11 else 0,
-            license_valid=bool(r[12]) if len(r) > 12 else True,
-            on_time_payment_rate=r[13] if len(r) > 13 else 0.0,
-            overdue_amount=r[14] if len(r) > 14 else 0.0,
-            avg_customer_rating=r[15] if len(r) > 15 else 0.0,
-            damage_rate=r[16] if len(r) > 16 else 0.0,
-            cooperation_months=r[17] if len(r) > 17 else 0,
-            credit_trend_score=r[18] if len(r) > 18 else 80.0,
-            recent_3m_orders=r[19] if len(r) > 19 else 0,
-            risk_label=r[20] if len(r) > 20 else "正常",
+        result.append(Vehicle(
+            vehicle_id=r[0], carrier_id=r[1],
+            license_plate=r[2] if len(r) > 2 and r[2] else "",
+            driver_name=r[3] if len(r) > 3 and r[3] else "",
+            transport_category=r[4] if len(r) > 4 and r[4] else "普货",
+            total_orders=r[5] if len(r) > 5 else 0,
+            completed_orders=r[6] if len(r) > 6 else 0,
+            on_time_orders=r[7] if len(r) > 7 else 0,
+            complaint_count=r[8] if len(r) > 8 else 0,
+            accident_count=r[9] if len(r) > 9 else 0,
+            violation_count=r[10] if len(r) > 10 else 0,
+            license_valid=bool(r[11]) if len(r) > 11 else True,
+            on_time_payment_rate=r[12] if len(r) > 12 else 0.0,
+            overdue_amount=r[13] if len(r) > 13 else 0.0,
+            avg_customer_rating=r[14] if len(r) > 14 else 0.0,
+            damage_rate=r[15] if len(r) > 15 else 0.0,
+            cooperation_months=r[16] if len(r) > 16 else 0,
+            credit_trend_score=r[17] if len(r) > 17 else 80.0,
+            recent_3m_orders=r[18] if len(r) > 18 else 0,
+            risk_label=r[19] if len(r) > 19 else "正常",
         ))
     return result
 
 
 # ═══════════════════════════════════════════════════════════════
-# 新增: 评分事件、预警记录、模型性能、模型注册、业务规则
+# 评分事件、预警记录、模型性能、模型注册、业务规则
 # ═══════════════════════════════════════════════════════════════
 
-def generate_mock_score_events(carrier_ids: List[str]) -> List[ScoreEvent]:
+def generate_mock_score_events(entity_ids: List[str]) -> List[ScoreEvent]:
     """生成模拟评分事件"""
     events = []
     event_templates = [
@@ -216,7 +296,7 @@ def generate_mock_score_events(carrier_ids: List[str]) -> List[ScoreEvent]:
         ("deduction", "扣分", "客户投诉: 服务态度差", -3),
         ("deduction", "扣分", "配送延误: 超时12小时", -2),
         ("addition", "加分", "连续三月无投诉奖励", 5),
-        ("addition", "加分", "季度优秀承运商", 8),
+        ("addition", "加分", "季度优秀车辆", 8),
         ("addition", "加分", "客户表扬: 紧急任务出色完成", 3),
         ("one_vote_veto", "一票否决", "许可证过期", -50),
         ("one_vote_veto", "一票否决", "重大安全事故: 危化品泄漏", -60),
@@ -225,7 +305,7 @@ def generate_mock_score_events(carrier_ids: List[str]) -> List[ScoreEvent]:
     now = datetime.now()
     for _ in range(80):
         template = random.choice(event_templates)
-        entity_id = random.choice(carrier_ids)
+        entity_id = random.choice(entity_ids)
         event_time = now - timedelta(days=random.randint(0, 365))
         events.append(ScoreEvent(
             entity_id=entity_id,
@@ -249,7 +329,7 @@ def save_score_events_to_db(events: List[ScoreEvent]):
     logger.info("已保存 %d 条评分事件", len(events))
 
 
-def generate_mock_alerts(carrier_ids: List[str], carrier_names: List[str]) -> List[AlertRecord]:
+def generate_mock_alerts(entity_ids: List[str], entity_names: List[str]) -> List[AlertRecord]:
     """生成模拟预警记录"""
     alerts = []
     alert_types = ["评分快速下滑", "一票否决触发", "许可证即将过期", "连续多单投诉"]
@@ -258,12 +338,12 @@ def generate_mock_alerts(carrier_ids: List[str], carrier_names: List[str]) -> Li
 
     now = datetime.now()
     for _ in range(30):
-        idx = random.randint(0, len(carrier_ids) - 1)
+        idx = random.randint(0, len(entity_ids) - 1)
         alert_type = random.choice(alert_types)
         severity = "高" if alert_type in ("一票否决触发", "许可证即将过期") else random.choice(severities)
         alerts.append(AlertRecord(
-            entity_id=carrier_ids[idx],
-            entity_name=carrier_names[idx] if idx < len(carrier_names) else f"承运商{idx+1}",
+            entity_id=entity_ids[idx],
+            entity_name=entity_names[idx] if idx < len(entity_names) else f"车辆{idx+1}",
             alert_type=alert_type,
             severity=severity,
             trigger_time=now - timedelta(days=random.randint(0, 30)),
@@ -293,7 +373,6 @@ def generate_mock_model_performance() -> List[ModelPerformance]:
     for i in range(12, 0, -1):
         period_date = now - timedelta(days=30 * i)
         period = period_date.strftime("%Y-%m")
-        # 冠军模型
         records.append(ModelPerformance(
             period=period, model_version="champion",
             ks=random.uniform(0.35, 0.52),
@@ -301,7 +380,6 @@ def generate_mock_model_performance() -> List[ModelPerformance]:
             psi=random.uniform(0.02, 0.08),
             record_time=period_date,
         ))
-        # 挑战者模型
         spearman = random.uniform(0.70, 0.88)
         records.append(ModelPerformance(
             period=period, model_version="challenger",
@@ -332,13 +410,13 @@ def generate_mock_model_registry() -> List[ModelRegistry]:
         ModelRegistry(
             model_version="v1.0", model_role="champion",
             online_date="2025-06-01", update_cycle="月度",
-            dimension_count=6, status="运行中",
+            dimension_count=5, status="运行中",
             consecutive_pass_months=0,
         ),
         ModelRegistry(
             model_version="v2.0", model_role="challenger",
             online_date="2025-12-01", update_cycle="月度",
-            dimension_count=6, status="影子运行中",
+            dimension_count=5, status="影子运行中",
             consecutive_pass_months=4,
         ),
     ]
@@ -398,12 +476,12 @@ def save_business_rules_to_db(rules: List[BusinessRule]):
     logger.info("已保存 %d 条业务规则", len(rules))
 
 
-def seed_score_history(carriers: List[Carrier]):
-    """为每个承运商生成近12个月的历史评分快照"""
+def seed_score_history(vehicles: List[Vehicle]):
+    """为每辆车生成近12个月的历史评分快照"""
     import json
     now = datetime.now()
     with default_db.connect() as conn:
-        for c in carriers:
+        for v in vehicles:
             base_score = random.uniform(50, 95)
             for m in range(12, 0, -1):
                 period_date = now - timedelta(days=30 * m)
@@ -412,8 +490,8 @@ def seed_score_history(carriers: List[Carrier]):
                 score = max(10, min(100, base_score + noise))
                 base_score = score
                 dims = {dim: round(score * w, 2) for dim, w in [
-                    ("企业资质", 0.15), ("履约能力", 0.25), ("服务质量", 0.20),
-                    ("行为合规", 0.15), ("经营信用", 0.15), ("生态协同", 0.10),
+                    ("企业资质", 0.17), ("履约能力", 0.28), ("服务质量", 0.22),
+                    ("行为合规", 0.16), ("经营信用", 0.17),
                 ]}
                 grade = "C"
                 for g, t in [("AAA", 90), ("AA", 80), ("A", 70), ("B", 60), ("C", 0)]:
@@ -423,21 +501,21 @@ def seed_score_history(carriers: List[Carrier]):
                 conn.execute(
                     """INSERT INTO score_history (entity_id, entity_type, score_value, grade, dimension_scores, eval_period, eval_time, model_version)
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (c.carrier_id, "carrier", round(score, 2), grade, json.dumps(dims), period, period_date.isoformat(), "v1.0"),
+                    (v.vehicle_id, "vehicle", round(score, 2), grade, json.dumps(dims), period, period_date.isoformat(), "v1.0"),
                 )
-    logger.info("已为 %d 个承运商生成12个月历史评分", len(carriers))
+    logger.info("已为 %d 辆车生成12个月历史评分", len(vehicles))
 
 
-def generate_mock_blockchain_records(carrier_ids: list[str]) -> list[dict]:
+def generate_mock_blockchain_records(entity_ids: list[str]) -> list[dict]:
     """生成模拟区块链存证记录"""
     import hashlib
     records = []
     now = datetime.now()
-    for cid in carrier_ids:
-        score_hash = hashlib.sha256(f"{cid}:{random.randint(50,100)}".encode()).hexdigest()[:16]
-        tx_hash = "0x" + hashlib.sha256(f"{cid}:{now.timestamp()}".encode()).hexdigest()
+    for eid in entity_ids:
+        score_hash = hashlib.sha256(f"{eid}:{random.randint(50,100)}".encode()).hexdigest()[:16]
+        tx_hash = "0x" + hashlib.sha256(f"{eid}:{now.timestamp()}".encode()).hexdigest()
         records.append({
-            "entity_id": cid,
+            "entity_id": eid,
             "score_hash": score_hash,
             "tx_hash": tx_hash,
             "block_number": random.randint(100000, 999999),
@@ -460,8 +538,10 @@ def save_blockchain_records_to_db(records: list[dict]):
 if __name__ == "__main__":
     from database.init_db import init_database
     init_database()
-    carriers = generate_mock_carriers(50)
+    carriers = generate_mock_carriers(15)
     save_carriers_to_db(carriers)
-    logger.info("生成 %d 条模拟承运商数据", len(carriers))
-    loaded = get_carriers_from_db()
-    logger.info("读取 %d 条数据", len(loaded))
+    logger.info("生成 %d 条模拟承运商企业数据", len(carriers))
+    vehicle_ids = [c.carrier_id for c in carriers]
+    vehicles = generate_mock_vehicles(vehicle_ids, 100)
+    save_vehicles_to_db(vehicles)
+    logger.info("生成 %d 条模拟车辆数据", len(vehicles))

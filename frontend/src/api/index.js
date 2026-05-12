@@ -29,14 +29,19 @@ async function cachedGet(url) {
   return res.data;
 }
 
-// === 承运商 ===
-export async function getCarriers(params = {}) {
+// === 车辆（评价对象） ===
+export async function getVehicles(params = {}) {
   const qs = new URLSearchParams(params).toString();
-  return cachedGet(`${API_BASE}/carriers${qs ? "?" + qs : ""}`);
+  return cachedGet(`${API_BASE}/vehicles${qs ? "?" + qs : ""}`);
 }
 
-export async function getCarrierDetail(id) {
-  return cachedGet(`${API_BASE}/carriers/${id}`);
+export async function getVehicleDetail(id) {
+  return cachedGet(`${API_BASE}/vehicles/${id}`);
+}
+
+// === 承运商企业 ===
+export async function getCarrierCompanies() {
+  return cachedGet(`${API_BASE}/carriers`);
 }
 
 // === 评分 ===

@@ -33,23 +33,35 @@ def init_database():
             CREATE TABLE IF NOT EXISTS carriers (
                 carrier_id TEXT PRIMARY KEY,
                 name TEXT,
-                carrier_type TEXT,
                 unified_credit_code TEXT DEFAULT '',
-                transport_category TEXT DEFAULT '普运',
                 cooperation_start_date TEXT DEFAULT '',
-                total_orders INTEGER,
-                completed_orders INTEGER,
-                on_time_orders INTEGER,
-                complaint_count INTEGER,
-                accident_count INTEGER,
-                violation_count INTEGER,
-                license_valid INTEGER,
-                on_time_payment_rate REAL,
-                overdue_amount REAL,
-                avg_customer_rating REAL,
-                damage_rate REAL,
-                cooperation_months INTEGER,
-                credit_trend_score REAL,
+                cooperation_mode TEXT DEFAULT '长期协议',
+                fleet_size INTEGER DEFAULT 0,
+                qualification TEXT DEFAULT '全资质',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS vehicles (
+                vehicle_id TEXT PRIMARY KEY,
+                carrier_id TEXT,
+                license_plate TEXT,
+                driver_name TEXT,
+                transport_category TEXT DEFAULT '普货',
+                total_orders INTEGER DEFAULT 0,
+                completed_orders INTEGER DEFAULT 0,
+                on_time_orders INTEGER DEFAULT 0,
+                complaint_count INTEGER DEFAULT 0,
+                accident_count INTEGER DEFAULT 0,
+                violation_count INTEGER DEFAULT 0,
+                license_valid INTEGER DEFAULT 1,
+                on_time_payment_rate REAL DEFAULT 0.0,
+                overdue_amount REAL DEFAULT 0.0,
+                avg_customer_rating REAL DEFAULT 0.0,
+                damage_rate REAL DEFAULT 0.0,
+                cooperation_months INTEGER DEFAULT 0,
+                credit_trend_score REAL DEFAULT 80.0,
                 recent_3m_orders INTEGER DEFAULT 0,
                 risk_label TEXT DEFAULT '正常',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -150,7 +162,7 @@ def init_database():
                 model_role TEXT,
                 online_date TEXT,
                 update_cycle TEXT DEFAULT '月度',
-                dimension_count INTEGER DEFAULT 6,
+                dimension_count INTEGER DEFAULT 5,
                 status TEXT DEFAULT '运行中',
                 consecutive_pass_months INTEGER DEFAULT 0
             )
@@ -176,6 +188,7 @@ def reset_database():
     with default_db.connect() as conn:
         cursor = conn.cursor()
         cursor.execute("DROP TABLE IF EXISTS shippers")
+        cursor.execute("DROP TABLE IF EXISTS vehicles")
         cursor.execute("DROP TABLE IF EXISTS carriers")
         cursor.execute("DROP TABLE IF EXISTS credit_scores")
         cursor.execute("DROP TABLE IF EXISTS blockchain_records")

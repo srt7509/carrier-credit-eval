@@ -22,7 +22,7 @@ function toggleTheme() {
 }
 
 const navItems = [
-  { path: '/', name: '承运商', icon: Van },
+  { path: '/', name: '车辆管理', icon: Van },
   { path: '/monitor', name: '模型监控', icon: Monitor },
   { path: '/business', name: '联动配置', icon: Briefcase },
   { path: '/alerts', name: '风险预警', icon: Bell },
@@ -39,7 +39,7 @@ const navItems = [
       <div class="sidebar-logo">
         <ElIcon size="28" color="#D4A017"><Van /></ElIcon>
         <h1>延长物流信用评价系统（Demo）</h1>
-        <p>Carrier CredEval v2.0</p>
+        <p>Vehicle CredEval v2.0</p>
       </div>
 
       <ElMenu :default-active="route.path" class="sidebar-menu" router :collapse="false">
@@ -54,7 +54,7 @@ const navItems = [
 
     <main class="main-content">
       <router-view v-slot="{ Component }">
-        <keep-alive include="CarrierList,AlertDashboard">
+        <keep-alive include="VehicleList,AlertDashboard">
           <component :is="Component" />
         </keep-alive>
       </router-view>

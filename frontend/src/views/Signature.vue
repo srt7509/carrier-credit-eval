@@ -71,7 +71,7 @@ function gradeClass(g) { return { 'grade-badge': true, [`grade-${g}`]: true } }
 
   <div class="filter-card" style="margin-bottom: 15px;">
     <el-select v-model="selectedId" placeholder="选择实体" style="width: 300px;" filterable :loading="scoresLoading">
-      <el-option v-for="s in scores" :key="s.entity_id" :label="`${s.entity_id} - ${s.entity_type === 'carrier' ? '承运商' : '货主'}`" :value="s.entity_id" />
+      <el-option v-for="s in scores" :key="s.entity_id" :label="`${s.entity_id} - ${s.entity_type === 'vehicle' ? '车辆' : s.entity_type === 'carrier' ? '承运商' : '货主'}`" :value="s.entity_id" />
     </el-select>
   </div>
 
@@ -81,7 +81,7 @@ function gradeClass(g) { return { 'grade-badge': true, [`grade-${g}`]: true } }
         <div class="data-card-header"><span class="data-card-label"><el-icon><Document /></el-icon> 评分数据</span></div>
         <el-descriptions v-if="selectedScore" :column="1" border size="small">
           <el-descriptions-item label="实体ID">{{ selectedScore.entity_id }}</el-descriptions-item>
-          <el-descriptions-item label="类型">{{ selectedScore.entity_type === 'carrier' ? '承运商' : '货主' }}</el-descriptions-item>
+          <el-descriptions-item label="类型">{{ selectedScore.entity_type === 'vehicle' ? '车辆' : selectedScore.entity_type === 'carrier' ? '承运商' : '货主' }}</el-descriptions-item>
           <el-descriptions-item label="评分"><span style="font-weight: 700;">{{ selectedScore.score_value.toFixed(1) }}</span></el-descriptions-item>
           <el-descriptions-item label="等级"><span :class="gradeClass(selectedScore.grade)">{{ selectedScore.grade }}</span></el-descriptions-item>
         </el-descriptions>

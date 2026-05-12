@@ -68,7 +68,7 @@ function alertTypeIcon(t) {
       </el-breadcrumb>
     </div>
     <h1 class="page-title"><el-icon size="22" color="#D4A017"><Bell /></el-icon>风险预警看板</h1>
-    <p class="page-desc">集中展示需要关注的承运商风险信号</p>
+    <p class="page-desc">集中展示需要关注的车辆风险信号</p>
   </div>
 
   <!-- KPI -->
@@ -127,7 +127,7 @@ function alertTypeIcon(t) {
           <el-alert :type="alertTypeIcon(row.alert_type)" :title="row.alert_type" :closable="false" show-icon style="padding:0;" />
         </template>
       </el-table-column>
-      <el-table-column label="承运商" min-width="140">
+      <el-table-column label="车辆/企业" min-width="140">
         <template #default="{ row }">
           <el-button link type="primary" @click="goToProfile(row.entity_id)">
             <el-icon><Van /></el-icon> {{ row.entity_name }}

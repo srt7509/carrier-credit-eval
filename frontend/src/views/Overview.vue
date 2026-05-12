@@ -57,7 +57,7 @@ const kpiData = computed(() => {
     avg: (data.reduce((sum, s) => sum + s.score_value, 0) / data.length).toFixed(1),
     aaa: data.filter(s => s.grade === 'AAA').length,
     highRisk: data.filter(s => s.grade === 'C').length,
-    carriers: data.filter(s => s.entity_type === 'carrier').length,
+    carriers: data.filter(s => s.entity_type === 'vehicle').length,
   }
 })
 
@@ -146,7 +146,7 @@ async function handleExport() {
       <el-icon size="22" color="#D4A017"><DataAnalysis /></el-icon>
       评分概览
     </h1>
-    <p class="page-desc">实时监控承运商与货主信用评分状况 · 共 {{ scores.length }} 条记录</p>
+    <p class="page-desc">实时监控车辆与货主信用评分状况 · 共 {{ scores.length }} 条记录</p>
   </div>
 
   <!-- Filter -->
@@ -155,6 +155,7 @@ async function handleExport() {
       <el-col :xs="24" :sm="12" :md="6">
         <el-select v-model="filterType" placeholder="评价对象" style="width: 100%;">
           <el-option label="全部" value="all" />
+          <el-option label="车辆" value="vehicle" />
           <el-option label="承运商" value="carrier" />
           <el-option label="货主" value="shipper" />
         </el-select>
@@ -196,7 +197,7 @@ async function handleExport() {
     </div>
     <div class="kpi-card">
       <div class="kpi-icon"><el-icon size="20"><Van /></el-icon></div>
-      <div class="kpi-label">承运商</div>
+      <div class="kpi-label">车辆</div>
       <div class="kpi-value">{{ carriersAnim }}</div>
     </div>
   </div>
@@ -219,7 +220,7 @@ async function handleExport() {
         <el-table-column prop="entity_id" label="ID" width="120" />
         <el-table-column label="类型" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.entity_type === 'carrier' ? '' : 'info'" size="small">{{ row.entity_type === 'carrier' ? '承运商' : '货主' }}</el-tag>
+            <el-tag :type="row.entity_type === 'vehicle' ? '' : row.entity_type === 'carrier' ? 'warning' : 'info'" size="small">{{ row.entity_type === 'vehicle' ? '车辆' : row.entity_type === 'carrier' ? '承运商' : '货主' }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="score_value" label="评分" width="120" sortable>

@@ -3,17 +3,44 @@ set -e
 
 cd /app
 
-# Initialize database on first run
-if [ ! -f /app/data/credit_scores.db ]; then
-    echo "=== Initializing database with seed data ==="
+DB_PATH="/app/data/credit_scores.db"
+DB_VERSION_FILE="/app/data/.db_version"
+CURRENT_VERSION="2.0"
+
+need_seed=false
+
+if [ ! -f "$DB_PATH" ]; then
+    echo "=== 数据库不存在，执行初始化 ==="
+    need_seed=true
+elif [ ! -f "$DB_VERSION_FILE" ] || [ "$(cat $DB_VERSION_FILE)" != "$CURRENT_VERSION" ]; then
+    echo "=== 数据库版本不匹配（当前: $(cat $DB_VERSION_FILE 2>/dev/null || echo '无'), 需要: $CURRENT_VERSION），重新初始化 ==="
+    rm -f "$DB_PATH"
+    need_seed=true
+elif ! python -c "
+import sqlite3
+conn = sqlite3.connect('$DB_PATH')
+tables = [r[0] for r in conn.execute(\"SELECT name FROM sqlite_master WHERE type='table'\").fetchall()]
+conn.close()
+assert 'vehicles' in tables, 'vehicles table missing'
+" 2>/dev/null; then
+    echo "=== vehicles 表不存在，需要数据库迁移，重新初始化 ==="
+    rm -f "$DB_PATH"
+    need_seed=true
+fi
+
+if $need_seed; then
+    echo "=== 运行 seed_all.py 初始化数据 ==="
     python seed_all.py
     if [ -f credit_scores.db ]; then
-        mv credit_scores.db /app/data/
+        mv credit_scores.db "$DB_PATH"
     fi
+    echo "$CURRENT_VERSION" > "$DB_VERSION_FILE"
+else
+    echo "=== 数据库已就绪（版本 $CURRENT_VERSION）==="
 fi
 
 # Symlink DB from persistent volume
-ln -sf /app/data/credit_scores.db credit_scores.db
+ln -sf "$DB_PATH" credit_scores.db
 
 # Start scheduler in background
 echo "Starting background scheduler..."

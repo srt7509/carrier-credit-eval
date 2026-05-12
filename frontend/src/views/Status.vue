@@ -65,8 +65,8 @@ onUnmounted(() => { clearInterval(uptimeInterval) })
   <div class="kpi-row">
     <div class="kpi-card">
       <div class="kpi-icon"><el-icon size="20" color="#1A365D"><Van /></el-icon></div>
-      <div class="kpi-label">承运商</div>
-      <div class="kpi-value">{{ stats.carrier_count || 0 }}</div>
+      <div class="kpi-label">车辆</div>
+      <div class="kpi-value">{{ stats.vehicle_count || 0 }}</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-icon"><el-icon size="20" color="#3D5A80"><OfficeBuilding /></el-icon></div>
@@ -121,7 +121,7 @@ onUnmounted(() => { clearInterval(uptimeInterval) })
   <el-card>
     <template #header>快捷操作</template>
     <el-row :gutter="12">
-      <el-col :span="6"><el-button style="width: 100%;" @click="router.push('/')"><el-icon><DataAnalysis /></el-icon> 承运商列表</el-button></el-col>
+      <el-col :span="6"><el-button style="width: 100%;" @click="router.push('/')"><el-icon><DataAnalysis /></el-icon> 车辆管理</el-button></el-col>
       <el-col :span="6"><el-button style="width: 100%;" @click="router.push('/monitor')"><el-icon><DataAnalysis /></el-icon> 模型监控</el-button></el-col>
       <el-col :span="6"><el-button style="width: 100%;" @click="router.push('/alerts')"><el-icon><Search /></el-icon> 风险预警</el-button></el-col>
       <el-col :span="6"><el-button style="width: 100%;" @click="router.push('/config')"><el-icon><Setting /></el-icon> 评分配置</el-button></el-col>

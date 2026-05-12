@@ -6,7 +6,7 @@ from datetime import datetime
 
 from database.db_manager import default_db
 from scoring.scoring_model import DualModelScorer, save_scores_to_db, calculate_psi, get_all_scores_from_db
-from data.mock_data import get_carriers_from_db
+from data.mock_data import get_vehicles_from_db
 from alerts.alert_manager import check_score_drop, create_alert
 from business.rule_engine import get_veto_events
 
@@ -64,8 +64,8 @@ class CreditScheduler:
 
         logger.info("=== 月度评分更新开始: %s ===", period)
         try:
-            carriers = get_carriers_from_db()
-            if not carriers:
+            vehicles = get_vehicles_from_db()
+            if not vehicles:
                 return
 
             # 旧评分
@@ -73,7 +73,7 @@ class CreditScheduler:
 
             # 双模型计算
             dual = DualModelScorer()
-            results = dual.calculate_all(carriers)
+            results = dual.calculate_all(vehicles)
 
             # PSI 检查
             psi = calculate_psi(
@@ -117,7 +117,8 @@ class CreditScheduler:
             entity_id, event_desc, event_time = row
 
             # 检查是否已处理
-            name_row = default_db.fetchone("SELECT name FROM carriers WHERE carrier_id = ?", (entity_id,))
+            name_row = default_db.fetchone(
+                "SELECT license_plate FROM vehicles WHERE vehicle_id = ?", (entity_id,))
             entity_name = name_row[0] if name_row else entity_id
 
             logger.warning("一票否决事件: %s - %s", entity_id, event_desc)
@@ -133,13 +134,13 @@ class CreditScheduler:
     def run_manual(self):
         """手动触发一次全量评分更新"""
         logger.info("手动触发评分更新")
-        carriers = get_carriers_from_db()
-        if not carriers:
-            return {"error": "无承运商数据"}
+        vehicles = get_vehicles_from_db()
+        if not vehicles:
+            return {"error": "无车辆数据"}
 
         old_scores = get_all_scores_from_db()
         dual = DualModelScorer()
-        results = dual.calculate_all(carriers)
+        results = dual.calculate_all(vehicles)
         psi = calculate_psi(
             [type('S', (), {'score_value': s['score_value']}) for s in old_scores],
             results["champion"],
@@ -147,7 +148,7 @@ class CreditScheduler:
         save_scores_to_db(results["champion"])
 
         return {
-            "carriers": len(carriers),
+            "vehicles": len(vehicles),
             "psi": psi,
             "champion_mean": round(sum(s.score_value for s in results["champion"]) / len(results["champion"]), 2),
             "challenger_mean": round(sum(s.score_value for s in results["challenger"]) / len(results["challenger"]), 2),

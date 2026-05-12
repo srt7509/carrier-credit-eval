@@ -8,7 +8,8 @@ logger = logging.getLogger(__name__)
 
 from database.init_db import reset_database
 from data.mock_data import (
-    generate_mock_carriers, save_carriers_to_db,
+    generate_mock_carriers, save_carriers_to_db, get_carriers_from_db,
+    generate_mock_vehicles, save_vehicles_to_db, get_vehicles_from_db,
     generate_mock_shippers, save_shippers_to_db,
     generate_mock_score_events, save_score_events_to_db,
     generate_mock_alerts, save_alerts_to_db,
@@ -19,25 +20,29 @@ from data.mock_data import (
     save_blockchain_records_to_db,
 )
 from scoring.scoring_model import DualModelScorer, save_scores_to_db, get_all_scores_from_db
-from data.mock_data import get_carriers_from_db
 
 
 def main():
     logger.info("=== 重置数据库 ===")
     reset_database()
 
-    logger.info("=== 生成承运商数据 ===")
-    carriers = generate_mock_carriers(50)
+    logger.info("=== 生成承运商企业数据 ===")
+    carriers = generate_mock_carriers(15)
     save_carriers_to_db(carriers)
+    carrier_ids = [c.carrier_id for c in carriers]
+
+    logger.info("=== 生成车辆数据 ===")
+    vehicles = generate_mock_vehicles(carrier_ids, 100)
+    save_vehicles_to_db(vehicles)
 
     logger.info("=== 生成货主数据 ===")
     shippers = generate_mock_shippers(30)
     save_shippers_to_db(shippers)
 
-    logger.info("=== 双模型评分 ===")
+    logger.info("=== 双模型评分（车辆） ===")
     dual = DualModelScorer()
-    all_carriers = get_carriers_from_db()
-    results = dual.calculate_all(all_carriers)
+    all_vehicles = get_vehicles_from_db()
+    results = dual.calculate_all(all_vehicles)
 
     # 保存冠军模型评分
     save_scores_to_db(results["champion"])
@@ -45,13 +50,13 @@ def main():
     logger.info("挑战者模型平均分: %.2f", sum(s.score_value for s in results["challenger"]) / len(results["challenger"]))
 
     logger.info("=== 生成评分事件 ===")
-    carrier_ids = [c.carrier_id for c in carriers]
-    events = generate_mock_score_events(carrier_ids)
+    vehicle_ids = [v.vehicle_id for v in vehicles]
+    events = generate_mock_score_events(vehicle_ids)
     save_score_events_to_db(events)
 
     logger.info("=== 生成预警记录 ===")
-    carrier_names = [c.name for c in carriers]
-    alerts = generate_mock_alerts(carrier_ids, carrier_names)
+    vehicle_plates = [v.license_plate for v in vehicles]
+    alerts = generate_mock_alerts(vehicle_ids, vehicle_plates)
     save_alerts_to_db(alerts)
 
     logger.info("=== 生成模型性能指标 ===")
@@ -67,15 +72,15 @@ def main():
     save_business_rules_to_db(rules)
 
     logger.info("=== 生成历史评分快照 ===")
-    seed_score_history(all_carriers)
+    seed_score_history(all_vehicles)
 
     logger.info("=== 生成区块链存证记录 ===")
-    carrier_ids = [c.carrier_id for c in carriers]
-    bc_records = generate_mock_blockchain_records(carrier_ids)
+    bc_records = generate_mock_blockchain_records(vehicle_ids)
     save_blockchain_records_to_db(bc_records)
 
     logger.info("=== 初始化完成 ===")
-    logger.info("承运商: %d, 货主: %d, 评分: %d", len(carriers), len(shippers), len(results["champion"]))
+    logger.info("承运商: %d, 车辆: %d, 货主: %d, 评分: %d",
+                len(carriers), len(vehicles), len(shippers), len(results["champion"]))
     logger.info("评分事件: %d, 预警: %d, 模型性能: %d", len(events), len(alerts), len(perf))
     logger.info("启动后端: pixi run python credit-web/backend/app.py")
 
